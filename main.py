@@ -1,7 +1,6 @@
 import pygame
 import time
 import os
-import subprocess
 import hashlib
 import tkinter
 from tkinter import ttk, messagebox
@@ -16,7 +15,7 @@ height = 720
 
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Passwortmanager")
-#pygame.display.set_icon(pygame.image.load("./images/favicon.png"))
+pygame.display.set_icon(pygame.image.load("./images/favicon.jpg"))
 
 font = pygame.font.Font(None,20)
 font2 = pygame.font.Font(None,100)
@@ -28,6 +27,9 @@ pw = ""
 pw_dec = ""
 last_pw_check = 0
 scroll = 0
+anzahl_passwords = 0
+show_password = {}
+del_show = []
 
 def ask_for_password():
     def submit():
@@ -89,14 +91,25 @@ def ask_for_password():
     root.mainloop()
 
 def new_password():
-
     def submit():
-        with open(f"./passwords/{url_var.get()}.pw", "w") as f:
+        invalid_chars = '\/:*?"<>|'
+        url_value = url_var.get()
+        if any(c in url_value for c in invalid_chars):
+            messagebox.showerror("Ungültige Eingabe", f"Folgende Zeichen sind nicht erlaubt: {invalid_chars}")
+            return
+        with open(f"./passwords/{url_value}.pw", "w") as f:
             f.write(f'{encrypt(username_var.get().encode()).decode()}\n{encrypt(password_var.get().encode()).decode()}')
         root.destroy()
 
     def cancel():
         root.destroy()
+
+    def validate_url_input(event):
+        invalid_chars = '\/:*?"<>|'
+        value = url_var.get()
+        new_value = ''.join(c for c in value if c not in invalid_chars)
+        if value != new_value:
+            url_var.set(new_value)
 
     root = tkinter.Tk()
     root.title("Eintrag hinzufügen")
@@ -106,21 +119,22 @@ def new_password():
     frame = ttk.Frame(root, padding=12)
     frame.pack(fill="both", expand=True)
 
-    ttk.Label(frame, text="Benutzername:").grid(row=0, column=0, sticky="w")
-    username_var = tkinter.StringVar()
-    username_entry = ttk.Entry(frame, textvariable=username_var, width=28)
-    username_entry.grid(row=0, column=1, padx=6, pady=4)
-    username_entry.focus()
-
-    ttk.Label(frame, text="Passwort:").grid(row=1, column=0, sticky="w")
-    password_var = tkinter.StringVar()
-    password_entry = ttk.Entry(frame, textvariable=password_var, width=28, show="*")
-    password_entry.grid(row=1, column=1, padx=6, pady=4)
-
-    ttk.Label(frame, text="URL:").grid(row=2, column=0, sticky="w")
+    ttk.Label(frame, text="Name / URL:").grid(row=0, column=0, sticky="w")
     url_var = tkinter.StringVar()
     url_entry = ttk.Entry(frame, textvariable=url_var, width=28)
-    url_entry.grid(row=2, column=1, padx=6, pady=4)
+    url_entry.grid(row=0, column=1, padx=6, pady=4)
+    url_entry.bind('<KeyRelease>', validate_url_input)
+
+    ttk.Label(frame, text="Benutzername:").grid(row=1, column=0, sticky="w")
+    username_var = tkinter.StringVar()
+    username_entry = ttk.Entry(frame, textvariable=username_var, width=28)
+    username_entry.grid(row=1, column=1, padx=6, pady=4)
+    username_entry.focus()
+
+    ttk.Label(frame, text="Passwort:").grid(row=2, column=0, sticky="w")
+    password_var = tkinter.StringVar()
+    password_entry = ttk.Entry(frame, textvariable=password_var, width=28, show="*")
+    password_entry.grid(row=2, column=1, padx=6, pady=4)
 
     button_frame = ttk.Frame(frame)
     button_frame.grid(row=3, column=1, sticky="e", pady=(10,0))
@@ -177,25 +191,56 @@ while running:
         if not os.path.exists("./passwords"):
             os.mkdir("passwords")
 
+        anzahl_passwords = 0
+
         for index, file in enumerate(os.listdir("./passwords")):
             if file.endswith(".pw"):
+                y = index * 50 - scroll * 50 + 20
+                x_button_rect = pygame.Rect(150, y, 30, 30)
+                del_show.append((file, x_button_rect))
+                x_text = font3.render("X", True, (255, 0, 0))
+                screen.blit(x_text, (x_button_rect.x + 7, x_button_rect.y))
+                if file not in show_password:
+                    show_password[file] = False
                 name = font3.render(file.removesuffix(".pw"), True, (0, 0, 0))
-                screen.blit(name, (100, index * 50 - scroll * 50 + 20))
+                screen.blit(name, (200, index * 50 - scroll * 50 + 20))
                 with open(f"./passwords/{file}") as f:
                     lines = [s.strip() for s in f]
                     username = decrypt((lines[0] if len(lines) > 0 else "").encode()).decode()
                     password = decrypt((lines[1] if len(lines) > 1 else "").encode()).decode()
                 username = font3.render(username, True, (0, 0, 0))
-                screen.blit(username, (700, index * 50 - scroll * 50 + 20))#
-                password = font3.render(password, True, (0, 0, 0))
-                screen.blit(password, (980, index * 50 - scroll * 50 + 20))
+                screen.blit(username, (700, index * 50 - scroll * 50 + 20))
+                pwd_display = password if show_password[file] else "*****"
+                pwd_text = font3.render(pwd_display, True, (0, 0, 0))
+                screen.blit(pwd_text, (980, index * 50 - scroll * 50 + 20))
+                anzahl_passwords += 1
                 
         keys = pygame.key.get_pressed()
 
         for event in pygame.event.get():
 
-            if event.type == pygame.MOUSEBUTTONUP and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] <= 700:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] <= 700:
                 new_password()
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                mx, my = pygame.mouse.get_pos()
+                for file, rect in del_show:
+                    if rect.collidepoint(mx, my):
+                        os.remove(f"./passwords/{file}")
+                        break
+                for index, file in enumerate(os.listdir("./passwords")):
+                    if file.endswith(".pw"):
+                        pwd_x = 980
+                        pwd_y = index * 50 - scroll * 50 + 20
+                        pwd_w = 250
+                        pwd_h = 40
+
+                        if pwd_x <= mx <= pwd_x + pwd_w and pwd_y <= my <= pwd_y + pwd_h:
+                            show_password[file] = not show_password[file]
+
+            if event.type == pygame.MOUSEWHEEL and event.y == 1 and scroll > 0:
+                scroll -= 1
+            if event.type == pygame.MOUSEWHEEL and event.y == -1 and scroll < anzahl_passwords:
+                scroll -= -1
 
             if event.type == pygame.QUIT:
                 running = False
