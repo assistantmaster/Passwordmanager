@@ -30,6 +30,109 @@ scroll = 0
 anzahl_passwords = 0
 show_password = {}
 del_show = []
+pw_reset_img = pygame.transform.scale(pygame.image.load("./images/password_reset.png"), (50, 50))
+
+def set_new_mpw(is_pw):
+    if is_pw:
+        def submit():
+            global pw
+            global pw_dec
+            global master_pw
+            global last_pw_check
+            if not (old_password_var.get() and new_password_var.get() and new_password_confirm_var.get()):
+                messagebox.showwarning("Fehler", "Passwort-Felder dürfen nicht leer sein")
+            else:
+                if old_password_var.get() == pw_dec and new_password_var.get() == new_password_confirm_var.get():
+                    with open("./password.mpw", "w") as f:
+                        f.write(hashlib.sha512(new_password_var.get().encode()).hexdigest())
+                    
+                    for index, file in enumerate(os.listdir("./passwords")):
+                        with open(f"./passwords/{file}", "r") as f:
+                            lines = [s.strip() for s in f]
+                            username = decrypt((lines[0] if len(lines) > 0 else "").encode(), pw_dec).decode()
+                            password = decrypt((lines[1] if len(lines) > 1 else "").encode(), pw_dec).decode()
+                        with open(f"./passwords/{file}", "w") as f:
+                            f.write(f'{encrypt(username.encode(), new_password_var.get()).decode()}\n{encrypt(password.encode(), new_password_var.get()).decode()}')
+
+                    master_pw = hashlib.sha512(new_password_var.get().encode()).hexdigest()
+                    pw = master_pw
+                    pw_dec = new_password_var.get()
+                    last_pw_check = int(time.time())
+                    root.destroy()
+                else:
+                    messagebox.showwarning("Fehler", "Passwörter stimmen nicht überein")
+
+    else:
+        def submit():
+            global pw
+            global pw_dec
+            global master_pw
+            global last_pw_check
+            if not (new_password_var.get() and new_password_confirm_var.get()):
+                messagebox.showwarning("Fehler", "Passwort-Felder dürfen nicht leer sein")
+            else:
+                if new_password_var.get() == new_password_confirm_var.get():
+                    with open("./password.mpw", "w") as f:
+                        f.write(hashlib.sha512(new_password_var.get().encode()).hexdigest())
+
+                    master_pw = hashlib.sha512(new_password_var.get().encode()).hexdigest()
+                    pw = master_pw
+                    pw_dec = new_password_var.get()
+                    last_pw_check = int(time.time())
+                    for file in os.listdir("./passwords"):
+                        os.remove(f"./passwords/{file}")
+                    root.destroy()
+                else:
+                    messagebox.showwarning("Fehler", "Passwörter stimmen nicht überein")
+
+    def toggle_show():
+        show = "" if show_var.get() else "*"
+        for widget in frame.winfo_children():
+            if isinstance(widget, ttk.Entry):
+                widget.config(show=show)
+
+    root = tkinter.Tk()
+    root.title("Neues Masterpasswort")
+    root.resizable(False, False)
+    root.geometry("400x180")
+
+    frame = ttk.Frame(root, padding=12)
+    frame.pack(fill="both", expand=True)
+
+    ttk.Label(frame, text="Altes Passwort:").grid(row=0, column=0, sticky="w")
+    old_password_var = tkinter.StringVar()
+    entry = ttk.Entry(frame, textvariable=old_password_var, show="*", width=26)
+    entry.grid(row=0, column=1, padx=6, pady=6)
+    entry.focus()
+
+    ttk.Label(frame, text="Neues Passwort:").grid(row=1, column=0, sticky="w")
+    new_password_var = tkinter.StringVar()
+    entry = ttk.Entry(frame, textvariable=new_password_var, show="*", width=26)
+    entry.grid(row=1, column=1, padx=6, pady=6)
+
+    ttk.Label(frame, text="Neues Passwort bestätigen:").grid(row=2, column=0, sticky="w")
+    new_password_confirm_var = tkinter.StringVar()
+    entry = ttk.Entry(frame, textvariable=new_password_confirm_var, show="*", width=26)
+    entry.grid(row=2, column=1, padx=6, pady=6)
+
+    show_var = tkinter.BooleanVar(value=False)
+    show_cb = ttk.Checkbutton(frame, text="anzeigen", variable=show_var, command=toggle_show)
+    show_cb.grid(row=3, column=1, sticky="w")
+
+    button_frame = ttk.Frame(frame)
+    button_frame.grid(row=4, column=1, sticky="e", pady=(10,0))
+
+    ok_btn = ttk.Button(button_frame, text="OK", command=submit)
+    ok_btn.pack(side="right")
+
+    cancel_btn = ttk.Button(button_frame, text="Abbrechen", command=root.destroy)
+    cancel_btn.pack(side="right", padx=(0,8))
+
+    error_label = ttk.Label(frame, text="", foreground="red")
+    error_label.grid(row=3, column=1, sticky="w")
+
+    root.bind('<Return>', lambda e: submit())
+    root.mainloop()
 
 def ask_for_password():
     def submit():
@@ -41,7 +144,7 @@ def ask_for_password():
         if not pw:
             messagebox.showwarning("Fehler", "Passwort darf nicht leer sein")
         else:
-            if pw == "81b7bc7073fbe7cc2500ece776e7fcccc810e9fa851f06f0b428594eb771fbe4a7e142b43ca48219d6590d69e2fb6942ac78ba1ba6202715c6d7e28fef46c112":
+            if pw == master_pw:
                 last_pw_check = int(time.time())
                 root.destroy()
                 return pw_dec
@@ -92,20 +195,20 @@ def ask_for_password():
 
 def new_password():
     def submit():
-        invalid_chars = '\/:*?"<>|'
+        invalid_chars = r'\/:*?"<>|'
         url_value = url_var.get()
         if any(c in url_value for c in invalid_chars):
             messagebox.showerror("Ungültige Eingabe", f"Folgende Zeichen sind nicht erlaubt: {invalid_chars}")
             return
         with open(f"./passwords/{url_value}.pw", "w") as f:
-            f.write(f'{encrypt(username_var.get().encode()).decode()}\n{encrypt(password_var.get().encode()).decode()}')
+            f.write(f'{encrypt(username_var.get().encode(), pw_dec).decode()}\n{encrypt(password_var.get().encode(), pw_dec).decode()}')
         root.destroy()
 
     def cancel():
         root.destroy()
 
     def validate_url_input(event):
-        invalid_chars = '\/:*?"<>|'
+        invalid_chars = r'\/:*?"<>|'
         value = url_var.get()
         new_value = ''.join(c for c in value if c not in invalid_chars)
         if value != new_value:
@@ -146,19 +249,34 @@ def new_password():
 
     root.mainloop()
 
-def encrypt(plaintext):
-    global pw_dec
+def encrypt(plaintext, pw_dec):
     key = base64.urlsafe_b64encode(sha256(pw_dec.encode()).digest())
     f = Fernet(key)
     ciphertext = f.encrypt(plaintext)
     return ciphertext
 
-def decrypt(ciphertext):
-    global pw_dec
+def decrypt(ciphertext, pw_dec):
     key = base64.urlsafe_b64encode(sha256(pw_dec.encode()).digest())
     f = Fernet(key)
     plaintext = f.decrypt(ciphertext)
     return plaintext
+
+
+if os.path.exists("./password.mpw"):
+    with open(f"./password.mpw") as f:
+        master_pw = str(f.read())
+        if master_pw == "":
+            screen.fill((233, 233, 228))
+            pw_warning = font2.render('Bitte gib das Passwort ein!', True, (0, 0, 0))
+            screen.blit(pw_warning, (screen.get_width() // 2 - pw_warning.get_width() // 2, screen.get_height() // 2 - pw_warning.get_height()))
+            pygame.display.flip()
+            set_new_mpw(False)
+else:
+    screen.fill((233, 233, 228))
+    pw_warning = font2.render('Bitte gib das Passwort ein!', True, (0, 0, 0))
+    screen.blit(pw_warning, (screen.get_width() // 2 - pw_warning.get_width() // 2, screen.get_height() // 2 - pw_warning.get_height()))
+    pygame.display.flip()
+    set_new_mpw(False)
 
 running = True
 while running:
@@ -170,7 +288,7 @@ while running:
         pygame.display.flip()
         ask_for_password()
 
-    elif pw == "81b7bc7073fbe7cc2500ece776e7fcccc810e9fa851f06f0b428594eb771fbe4a7e142b43ca48219d6590d69e2fb6942ac78ba1ba6202715c6d7e28fef46c112":
+    elif pw == master_pw:
 
         timeleft = 300 - (int(time.time()) - last_pw_check)
         timeleftmin = int(timeleft//60)
@@ -182,6 +300,7 @@ while running:
         screen.fill((233, 233, 228))
         screen.blit(timedisplay, (20, 20))
         adddisplay = font2.render('+', True, (0, 0, 0))
+        screen.blit(pw_reset_img, (0, 500))
         screen.blit(adddisplay, (0, 600))
 
         if last_pw_check + 300 <= int(time.time()):
@@ -206,8 +325,8 @@ while running:
                 screen.blit(name, (200, index * 50 - scroll * 50 + 20))
                 with open(f"./passwords/{file}") as f:
                     lines = [s.strip() for s in f]
-                    username = decrypt((lines[0] if len(lines) > 0 else "").encode()).decode()
-                    password = decrypt((lines[1] if len(lines) > 1 else "").encode()).decode()
+                    username = decrypt((lines[0] if len(lines) > 0 else "").encode(), pw_dec).decode()
+                    password = decrypt((lines[1] if len(lines) > 1 else "").encode(), pw_dec).decode()
                 username = font3.render(username, True, (0, 0, 0))
                 screen.blit(username, (700, index * 50 - scroll * 50 + 20))
                 pwd_display = password if show_password[file] else "*****"
@@ -219,8 +338,10 @@ while running:
 
         for event in pygame.event.get():
 
-            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] <= 700:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] < 700:
                 new_password()
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 500 and pygame.mouse.get_pos()[1] < 600:
+                set_new_mpw(True)
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 mx, my = pygame.mouse.get_pos()
                 for file, rect in del_show:
