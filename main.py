@@ -30,7 +30,6 @@ scroll = 0
 anzahl_passwords = 0
 show_password = {}
 del_show = []
-pw_reset_img = pygame.transform.scale(pygame.image.load("./images/password_reset.png"), (50, 50))
 
 def set_new_mpw(is_pw):
     if is_pw:
@@ -261,6 +260,8 @@ def decrypt(ciphertext, pw_dec):
     plaintext = f.decrypt(ciphertext)
     return plaintext
 
+if not os.path.exists("./passwords"):
+    os.mkdir("./passwords")
 
 if os.path.exists("./password.mpw"):
     with open(f"./password.mpw") as f:
@@ -300,7 +301,8 @@ while running:
         screen.fill((233, 233, 228))
         screen.blit(timedisplay, (20, 20))
         adddisplay = font2.render('+', True, (0, 0, 0))
-        screen.blit(pw_reset_img, (0, 500))
+        pw_reset = font3.render('[***]', True, (0, 0, 0))
+        screen.blit(pw_reset, (0, 550))
         screen.blit(adddisplay, (0, 600))
 
         if last_pw_check + 300 <= int(time.time()):
@@ -311,7 +313,6 @@ while running:
             os.mkdir("passwords")
 
         anzahl_passwords = 0
-
         for index, file in enumerate(os.listdir("./passwords")):
             if file.endswith(".pw"):
                 y = index * 50 - scroll * 50 + 20
@@ -338,9 +339,9 @@ while running:
 
         for event in pygame.event.get():
 
-            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] < 700:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] < 650:
                 new_password()
-            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 100 and pygame.mouse.get_pos()[1] >= 500 and pygame.mouse.get_pos()[1] < 600:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 550 and pygame.mouse.get_pos()[1] < 600:
                 set_new_mpw(True)
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 mx, my = pygame.mouse.get_pos()
