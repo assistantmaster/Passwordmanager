@@ -46,12 +46,13 @@ def set_new_mpw(is_pw):
                         f.write(hashlib.sha512(new_password_var.get().encode()).hexdigest())
 
                     with open("./passwords.pw") as f:
-                        json_temp = json.load(f)
-
-                    for index, (url, credentials) in enumerate(json_temp.items()):
+                        passwords_json = json.load(f)
+                    json_temp = {}
+                    for index, (url_enc, credentials) in enumerate(passwords_json.items()):
+                        url = decrypt(url_enc.encode(), pw_dec).decode()
                         username = decrypt((credentials[0] if len(credentials) > 0 else "").encode(), pw_dec).decode()
                         password = decrypt((credentials[1] if len(credentials) > 1 else "").encode(), pw_dec).decode()
-                        json_temp[url] = [encrypt(username.encode(), new_password_var.get()).decode(), encrypt(password.encode(), new_password_var.get()).decode()]
+                        json_temp[encrypt(url.encode(), new_password_var.get()).decode()] = [encrypt(username.encode(), new_password_var.get()).decode(), encrypt(password.encode(), new_password_var.get()).decode()]
 
                     with open("./passwords.pw", "w") as f:
                         json.dump(json_temp, f)
@@ -88,8 +89,8 @@ def set_new_mpw(is_pw):
                     pw = master_pw
                     pw_dec = new_password_var.get()
                     last_pw_check = int(time.time())
-                    for file in os.listdir("./passwords"):
-                        os.remove(f"./passwords/{file}")
+                    if os.path.exists("./passwords.pw"):
+                        os.remove(f"./passwords.pw")
                     root.destroy()
                 else:
                     messagebox.showwarning("Fehler", "Passwörter stimmen nicht überein")
@@ -211,7 +212,7 @@ def new_password():
             return
         with open("./passwords.pw") as f:
             json_temp = json.load(f)
-        json_temp[url_value] = [encrypt(username_var.get().encode(), pw_dec).decode(), encrypt(password_var.get().encode(), pw_dec).decode()]
+        json_temp[encrypt(url_value.encode(), pw_dec).decode()] = [encrypt(username_var.get().encode(), pw_dec).decode(), encrypt(password_var.get().encode(), pw_dec).decode()]
         with open("./passwords.pw", "w") as f:
             json.dump(json_temp, f)
 
@@ -265,9 +266,14 @@ def new_password():
     root.mainloop()
 
 def delete_password(url_value):
-    with open("./passswords.pw") as f:
+    with open("./passwords.pw") as f:
         json_temp = json.load(f)
-    del json_temp[url_value]
+
+    for (url_enc, credentials) in json_temp.items():
+        if decrypt(url_enc.encode(), pw_dec).decode() == url_value:
+            url = url_enc
+            
+    del json_temp[url]
     with open("./passwords.pw", "w") as f:
         json.dump(json_temp, f)
 
@@ -282,9 +288,6 @@ def decrypt(ciphertext, pw_dec):
     f = Fernet(key)
     plaintext = f.decrypt(ciphertext)
     return plaintext
-
-if not os.path.exists("./passwords"):
-    os.mkdir("./passwords")
 
 if os.path.exists("./password.mpw"):
     with open(f"./password.mpw") as f:
@@ -340,7 +343,9 @@ while running:
             passwords_json = json.load(f)
 
         anzahl_passwords = 0
-        for index, (url, credentials) in enumerate(passwords_json.items()):
+        del_show = []
+        for index, (url_enc, credentials) in enumerate(passwords_json.items()):
+            url = decrypt(url_enc.encode(), pw_dec).decode()
             y = index * 50 - scroll * 50 + 20
             x_button_rect = pygame.Rect(150, y, 30, 30)
             del_show.append((url, x_button_rect))
@@ -368,13 +373,16 @@ while running:
                 new_password()
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 550 and pygame.mouse.get_pos()[1] < 600:
                 set_new_mpw(True)
+                with open("./passwords.pw") as f:
+                    passwords_json = json.load(f)
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 mx, my = pygame.mouse.get_pos()
                 for url, rect in del_show:
                     if rect.collidepoint(mx, my):
                         delete_password(url)
                         break
-                for index, (url, credentials) in enumerate(passwords_json.items()):
+                for index, (url_enc, credentials) in enumerate(passwords_json.items()):
+                    url = decrypt(url_enc.encode(), pw_dec).decode()
                     pwd_x = 980
                     pwd_y = index * 50 - scroll * 50 + 20
                     pwd_w = 250
