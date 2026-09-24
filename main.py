@@ -7,6 +7,7 @@ from tkinter import ttk, messagebox
 from cryptography.fernet import Fernet
 from hashlib import sha256
 import base64
+import json
 
 pygame.init()
 
@@ -15,13 +16,12 @@ height = 720
 
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Passwortmanager")
-pygame.display.set_icon(pygame.image.load("./images/favicon.jpg"))
 
 font = pygame.font.Font(None,20)
 font2 = pygame.font.Font(None,100)
 font3 = pygame.font.Font(None,40)
 
-copyright = font.render('© 2025 by assistantmaster', True, (150,150,150))
+copyright = font.render('© 2026 by assistantmaster', True, (150,150,150))
 
 pw = ""
 pw_dec = ""
@@ -44,14 +44,24 @@ def set_new_mpw(is_pw):
                 if old_password_var.get() == pw_dec and new_password_var.get() == new_password_confirm_var.get():
                     with open("./password.mpw", "w") as f:
                         f.write(hashlib.sha512(new_password_var.get().encode()).hexdigest())
-                    
-                    for index, file in enumerate(os.listdir("./passwords")):
-                        with open(f"./passwords/{file}", "r") as f:
-                            lines = [s.strip() for s in f]
-                            username = decrypt((lines[0] if len(lines) > 0 else "").encode(), pw_dec).decode()
-                            password = decrypt((lines[1] if len(lines) > 1 else "").encode(), pw_dec).decode()
-                        with open(f"./passwords/{file}", "w") as f:
-                            f.write(f'{encrypt(username.encode(), new_password_var.get()).decode()}\n{encrypt(password.encode(), new_password_var.get()).decode()}')
+
+                    with open("./passwords.pw") as f:
+                        json_temp = json.load(f)
+
+                    for index, (url, credentials) in enumerate(json_temp.items()):
+                        username = decrypt((credentials[0] if len(credentials) > 0 else "").encode(), pw_dec).decode()
+                        password = decrypt((credentials[1] if len(credentials) > 1 else "").encode(), pw_dec).decode()
+                        json_temp[url] = [encrypt(username.encode(), new_password_var.get()).decode(), encrypt(password.encode(), new_password_var.get()).decode()]
+
+                    with open("./passwords.pw", "w") as f:
+                        json.dump(json_temp, f)
+                    # for index, file in enumerate(os.listdir("./passwords")):
+                    #     with open(f"./passwords/{file}") as f:
+                    #         lines = [s.strip() for s in f]
+                    #         username = decrypt((lines[0] if len(lines) > 0 else "").encode(), pw_dec).decode()
+                    #         password = decrypt((lines[1] if len(lines) > 1 else "").encode(), pw_dec).decode()
+                    #     with open(f"./passwords/{file}", "w") as f:
+                    #         f.write(f'{encrypt(username.encode(), new_password_var.get()).decode()}\n{encrypt(password.encode(), new_password_var.get()).decode()}')
 
                     master_pw = hashlib.sha512(new_password_var.get().encode()).hexdigest()
                     pw = master_pw
@@ -199,8 +209,14 @@ def new_password():
         if any(c in url_value for c in invalid_chars):
             messagebox.showerror("Ungültige Eingabe", f"Folgende Zeichen sind nicht erlaubt: {invalid_chars}")
             return
-        with open(f"./passwords/{url_value}.pw", "w") as f:
-            f.write(f'{encrypt(username_var.get().encode(), pw_dec).decode()}\n{encrypt(password_var.get().encode(), pw_dec).decode()}')
+        with open("./passwords.pw") as f:
+            json_temp = json.load(f)
+        json_temp[url_value] = [encrypt(username_var.get().encode(), pw_dec).decode(), encrypt(password_var.get().encode(), pw_dec).decode()]
+        with open("./passwords.pw", "w") as f:
+            json.dump(json_temp, f)
+
+        # with open(f"./passwords/{url_value}.pw", "w") as f:
+        #     f.write(f'{encrypt(username_var.get().encode(), pw_dec).decode()}\n{encrypt(password_var.get().encode(), pw_dec).decode()}')
         root.destroy()
 
     def cancel():
@@ -247,6 +263,13 @@ def new_password():
     root.bind('<Return>', lambda e: submit())
 
     root.mainloop()
+
+def delete_password(url_value):
+    with open("./passswords.pw") as f:
+        json_temp = json.load(f)
+    del json_temp[url_value]
+    with open("./passwords.pw", "w") as f:
+        json.dump(json_temp, f)
 
 def encrypt(plaintext, pw_dec):
     key = base64.urlsafe_b64encode(sha256(pw_dec.encode()).digest())
@@ -309,31 +332,33 @@ while running:
             pw = ""
             pw_dec = ""
 
-        if not os.path.exists("./passwords"):
-            os.mkdir("passwords")
+        if not os.path.exists("./passwords.pw"):
+            with open("./passwords.pw", "w") as f:
+                f.write(r"{}")
+
+        with open("./passwords.pw") as f:
+            passwords_json = json.load(f)
 
         anzahl_passwords = 0
-        for index, file in enumerate(os.listdir("./passwords")):
-            if file.endswith(".pw"):
-                y = index * 50 - scroll * 50 + 20
-                x_button_rect = pygame.Rect(150, y, 30, 30)
-                del_show.append((file, x_button_rect))
-                x_text = font3.render("X", True, (255, 0, 0))
-                screen.blit(x_text, (x_button_rect.x + 7, x_button_rect.y))
-                if file not in show_password:
-                    show_password[file] = False
-                name = font3.render(file.removesuffix(".pw"), True, (0, 0, 0))
-                screen.blit(name, (200, index * 50 - scroll * 50 + 20))
-                with open(f"./passwords/{file}") as f:
-                    lines = [s.strip() for s in f]
-                    username = decrypt((lines[0] if len(lines) > 0 else "").encode(), pw_dec).decode()
-                    password = decrypt((lines[1] if len(lines) > 1 else "").encode(), pw_dec).decode()
-                username = font3.render(username, True, (0, 0, 0))
-                screen.blit(username, (700, index * 50 - scroll * 50 + 20))
-                pwd_display = password if show_password[file] else "*****"
-                pwd_text = font3.render(pwd_display, True, (0, 0, 0))
-                screen.blit(pwd_text, (980, index * 50 - scroll * 50 + 20))
-                anzahl_passwords += 1
+        for index, (url, credentials) in enumerate(passwords_json.items()):
+            y = index * 50 - scroll * 50 + 20
+            x_button_rect = pygame.Rect(150, y, 30, 30)
+            del_show.append((url, x_button_rect))
+            x_text = font3.render("X", True, (255, 0, 0))
+            screen.blit(x_text, (x_button_rect.x + 7, x_button_rect.y))
+            if url not in show_password:
+                show_password[url] = False
+            name = font3.render(url, True, (0, 0, 0))
+            screen.blit(name, (200, index * 50 - scroll * 50 + 20))
+            username = decrypt((credentials[0] if len(credentials) > 0 else "").encode(), pw_dec).decode()
+            password = decrypt((credentials[1] if len(credentials) > 1 else "").encode(), pw_dec).decode()
+
+            username = font3.render(username, True, (0, 0, 0))
+            screen.blit(username, (700, index * 50 - scroll * 50 + 20))
+            pwd_display = password if show_password[url] else "*****"
+            pwd_text = font3.render(pwd_display, True, (0, 0, 0))
+            screen.blit(pwd_text, (980, index * 50 - scroll * 50 + 20))
+            anzahl_passwords += 1
                 
         keys = pygame.key.get_pressed()
 
@@ -345,19 +370,18 @@ while running:
                 set_new_mpw(True)
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 mx, my = pygame.mouse.get_pos()
-                for file, rect in del_show:
+                for url, rect in del_show:
                     if rect.collidepoint(mx, my):
-                        os.remove(f"./passwords/{file}")
+                        delete_password(url)
                         break
-                for index, file in enumerate(os.listdir("./passwords")):
-                    if file.endswith(".pw"):
-                        pwd_x = 980
-                        pwd_y = index * 50 - scroll * 50 + 20
-                        pwd_w = 250
-                        pwd_h = 40
+                for index, (url, credentials) in enumerate(passwords_json.items()):
+                    pwd_x = 980
+                    pwd_y = index * 50 - scroll * 50 + 20
+                    pwd_w = 250
+                    pwd_h = 40
 
-                        if pwd_x <= mx <= pwd_x + pwd_w and pwd_y <= my <= pwd_y + pwd_h:
-                            show_password[file] = not show_password[file]
+                    if pwd_x <= mx <= pwd_x + pwd_w and pwd_y <= my <= pwd_y + pwd_h:
+                        show_password[url] = not show_password[url]
 
             if event.type == pygame.MOUSEWHEEL and event.y == 1 and scroll > 0:
                 scroll -= 1
