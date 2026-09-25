@@ -8,6 +8,9 @@ from cryptography.fernet import Fernet
 from hashlib import sha256
 import base64
 import json
+import secrets
+import string
+import pyperclip
 
 pygame.init()
 
@@ -56,14 +59,7 @@ def set_new_mpw(is_pw):
 
                     with open("./passwords.pw", "w") as f:
                         json.dump(json_temp, f)
-                    # for index, file in enumerate(os.listdir("./passwords")):
-                    #     with open(f"./passwords/{file}") as f:
-                    #         lines = [s.strip() for s in f]
-                    #         username = decrypt((lines[0] if len(lines) > 0 else "").encode(), pw_dec).decode()
-                    #         password = decrypt((lines[1] if len(lines) > 1 else "").encode(), pw_dec).decode()
-                    #     with open(f"./passwords/{file}", "w") as f:
-                    #         f.write(f'{encrypt(username.encode(), new_password_var.get()).decode()}\n{encrypt(password.encode(), new_password_var.get()).decode()}')
-
+                    
                     master_pw = hashlib.sha512(new_password_var.get().encode()).hexdigest()
                     pw = master_pw
                     pw_dec = new_password_var.get()
@@ -205,30 +201,16 @@ def ask_for_password():
 
 def new_password():
     def submit():
-        invalid_chars = r'\/:*?"<>|'
         url_value = url_var.get()
-        if any(c in url_value for c in invalid_chars):
-            messagebox.showerror("Ungültige Eingabe", f"Folgende Zeichen sind nicht erlaubt: {invalid_chars}")
-            return
         with open("./passwords.pw") as f:
             json_temp = json.load(f)
         json_temp[encrypt(url_value.encode(), pw_dec).decode()] = [encrypt(username_var.get().encode(), pw_dec).decode(), encrypt(password_var.get().encode(), pw_dec).decode()]
         with open("./passwords.pw", "w") as f:
             json.dump(json_temp, f)
-
-        # with open(f"./passwords/{url_value}.pw", "w") as f:
-        #     f.write(f'{encrypt(username_var.get().encode(), pw_dec).decode()}\n{encrypt(password_var.get().encode(), pw_dec).decode()}')
         root.destroy()
 
     def cancel():
         root.destroy()
-
-    def validate_url_input(event):
-        invalid_chars = r'\/:*?"<>|'
-        value = url_var.get()
-        new_value = ''.join(c for c in value if c not in invalid_chars)
-        if value != new_value:
-            url_var.set(new_value)
 
     root = tkinter.Tk()
     root.title("Eintrag hinzufügen")
@@ -242,7 +224,6 @@ def new_password():
     url_var = tkinter.StringVar()
     url_entry = ttk.Entry(frame, textvariable=url_var, width=28)
     url_entry.grid(row=0, column=1, padx=6, pady=4)
-    url_entry.bind('<KeyRelease>', validate_url_input)
 
     ttk.Label(frame, text="Benutzername:").grid(row=1, column=0, sticky="w")
     username_var = tkinter.StringVar()
@@ -276,6 +257,70 @@ def delete_password(url_value):
     del json_temp[url]
     with open("./passwords.pw", "w") as f:
         json.dump(json_temp, f)
+
+def generate_password():
+    def submit():
+        length = length_var.get()
+        use_upper = upper_var.get()
+        use_lower = lower_var.get()
+        use_digits = digits_var.get()
+        use_special = special_var.get()
+
+        chars = ""
+        if use_upper:
+            chars += string.ascii_uppercase
+        if use_lower:
+            chars += string.ascii_lowercase
+        if use_digits:
+            chars += string.digits
+        if use_special:
+            chars += "!@#$%^&*()_+-=[]{}|;:,.<>?"
+
+        if not chars:
+            messagebox.showwarning("Hinweis", "Bitte wähle mindestens eine Zeichenart aus!")
+            return
+
+        new_pw = "".join(secrets.choice(chars) for _ in range(length))
+        password_var.set(new_pw)
+        pyperclip.copy(new_pw)
+
+    root = tkinter.Tk()
+    root.title("Passwort Generator")
+    root.resizable(False, False)
+    root.geometry("340x260")
+
+    frame = ttk.Frame(root, padding=12)
+    frame.pack(fill="both", expand=True)
+
+    upper_var = tkinter.BooleanVar(value=True)
+    lower_var = tkinter.BooleanVar(value=True)
+    digits_var = tkinter.BooleanVar(value=True)
+    special_var = tkinter.BooleanVar(value=True)
+
+    ttk.Checkbutton(frame, text="Großbuchstaben (A-Z)", variable=upper_var).grid(row=0, column=0, columnspan=2, sticky="w", pady=2)
+    ttk.Checkbutton(frame, text="Kleinbuchstaben (a-z)", variable=lower_var).grid(row=1, column=0, columnspan=2, sticky="w", pady=2)
+    ttk.Checkbutton(frame, text="Zahlen (0-9)", variable=digits_var).grid(row=2, column=0, columnspan=2, sticky="w", pady=2)
+    ttk.Checkbutton(frame, text="Sonderzeichen (!@#$...)", variable=special_var).grid(row=3, column=0, columnspan=2, sticky="w", pady=2)
+
+    ttk.Label(frame, text="Länge:").grid(row=4, column=0, sticky="w", pady=(8, 2))
+    length_var = tkinter.IntVar(value=16)
+    length_spinbox = ttk.Spinbox(frame, from_=4, to=64, textvariable=length_var, width=6)
+    length_spinbox.grid(row=4, column=1, sticky="w", padx=6, pady=(8, 2))
+
+    ttk.Label(frame, text="Passwort:").grid(row=5, column=0, sticky="w", pady=(8, 2))
+    password_var = tkinter.StringVar()
+    password_entry = ttk.Entry(frame, textvariable=password_var, width=28)
+    password_entry.grid(row=5, column=1, sticky="w", padx=6, pady=(8, 2))
+
+    button_frame = ttk.Frame(frame)
+    button_frame.grid(row=6, column=0, columnspan=2, sticky="e", pady=(12, 0))
+
+    ttk.Button(button_frame, text="OK", command=submit).pack(side="right")
+    ttk.Button(button_frame, text="Abbrechen", command=root.destroy).pack(side="right", padx=(0, 8))
+
+    root.bind('<Return>', lambda e: submit())
+
+    root.mainloop()
 
 def encrypt(plaintext, pw_dec):
     key = base64.urlsafe_b64encode(sha256(pw_dec.encode()).digest())
@@ -328,7 +373,9 @@ while running:
         screen.blit(timedisplay, (20, 20))
         adddisplay = font2.render('+', True, (0, 0, 0))
         pw_reset = font3.render('[***]', True, (0, 0, 0))
-        screen.blit(pw_reset, (0, 550))
+        generate = font3.render('Aa1!', True, (0, 0, 0))
+        screen.blit(pw_reset, (0, 500))
+        screen.blit(generate, (0, 550))
         screen.blit(adddisplay, (0, 600))
 
         if last_pw_check + 300 <= int(time.time()):
@@ -371,10 +418,12 @@ while running:
 
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 600 and pygame.mouse.get_pos()[1] < 650:
                 new_password()
-            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 550 and pygame.mouse.get_pos()[1] < 600:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 500 and pygame.mouse.get_pos()[1] < 550:
                 set_new_mpw(True)
                 with open("./passwords.pw") as f:
                     passwords_json = json.load(f)
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and pygame.mouse.get_pos()[0] <= 50 and pygame.mouse.get_pos()[1] >= 550 and pygame.mouse.get_pos()[1] < 600:
+                generate_password()
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 mx, my = pygame.mouse.get_pos()
                 for url, rect in del_show:
